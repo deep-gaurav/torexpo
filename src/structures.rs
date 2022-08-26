@@ -60,25 +60,21 @@ impl MutationRoot {
         }
     }
 
-    pub async fn start<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<Torrent> {
+    pub async fn start<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<String> {
         let data = ctx.data::<SharedData>()?;
         if let Some(torrent) = &data.torrents.get(&torrent_id) {
             torrent.start();
-            Ok(Torrent {
-                torrent: torrent.value().clone(),
-            })
+            Ok("success".into())
         } else {
             Err("Torrent not found".into())
         }
     }
 
-    pub async fn stop<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<Torrent> {
+    pub async fn stop<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<String> {
         let data = ctx.data::<SharedData>()?;
         if let Some(torrent) = &data.torrents.get(&torrent_id) {
             torrent.stop();
-            Ok(Torrent {
-                torrent: torrent.value().clone(),
-            })
+            Ok("success".into())
         } else {
             Err("Torrent not found".into())
         }

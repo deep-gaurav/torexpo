@@ -2,9 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use async_graphql::*;
 use futures_util::Stream;
-use tokio_stream::StreamExt;
 
-use crate::context::SharedData;
+use crate::{
+    context::SharedData,
+    torrent_struc::{TorrentInfo, TorrentStats},
+};
 
 pub type MainSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
 
@@ -22,6 +24,64 @@ impl MutationRoot {
         let id = torrent.id();
         data.torrents.insert(id, torrent);
         Ok(id)
+    }
+
+    pub async fn add_torrent_file<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        torrent: Upload,
+    ) -> Result<i32> {
+        let torrent_file = torrent.value(ctx)?;
+        let tmpdir = tempfile::tempdir()?;
+        let path = tmpdir.path().join(&torrent_file.filename);
+        let mut file = std::fs::File::open(&path)?;
+        // let bufWrite = BufWriter::new(file);
+        let _res = tokio::task::spawn_blocking(move || {
+            let mut read = torrent_file.into_read();
+            std::io::copy(&mut read, &mut file)
+        })
+        .await??;
+        let data = ctx.data::<SharedData>()?;
+        let torrent = data
+            .client
+            .add_torrent_file(path.to_str().ok_or("Not valid path")?)?;
+        let id = torrent.id();
+        data.torrents.insert(id, torrent);
+        Ok(id)
+    }
+
+    pub async fn remove<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<String> {
+        let data = ctx.data::<SharedData>()?;
+        if let Some((_id, torrent)) = data.torrents.remove(&torrent_id) {
+            torrent.remove(true);
+            Ok("success".into())
+        } else {
+            Err("Torrent not found".into())
+        }
+    }
+
+    pub async fn start<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<Torrent> {
+        let data = ctx.data::<SharedData>()?;
+        if let Some(torrent) = &data.torrents.get(&torrent_id) {
+            torrent.start();
+            Ok(Torrent {
+                torrent: torrent.value().clone(),
+            })
+        } else {
+            Err("Torrent not found".into())
+        }
+    }
+
+    pub async fn stop<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<Torrent> {
+        let data = ctx.data::<SharedData>()?;
+        if let Some(torrent) = &data.torrents.get(&torrent_id) {
+            torrent.stop();
+            Ok(Torrent {
+                torrent: torrent.value().clone(),
+            })
+        } else {
+            Err("Torrent not found".into())
+        }
     }
 }
 
@@ -41,8 +101,8 @@ impl QueryRoot {
     }
 }
 
-struct Torrent {
-    torrent: transmission::Torrent,
+pub struct Torrent {
+    pub torrent: transmission::Torrent,
 }
 
 #[Object]
@@ -60,16 +120,41 @@ impl Torrent {
         Ok(status.into())
     }
 
-    async fn total_bytes(&self) -> Result<u64> {
-        Ok(self.torrent.stats().size_when_done)
+    async fn info(&self) -> Result<TorrentInfo> {
+        Ok(self.torrent.info().into())
     }
 
-    async fn total_downloaded(&self) -> Result<u64> {
-        Ok(self.torrent.stats().size_when_done - self.torrent.stats().left_until_done)
+    async fn stats(&self) -> Result<TorrentStats> {
+        Ok(self.torrent.stats().into())
     }
+}
 
-    async fn peers_connected(&self) -> Result<i32> {
-        Ok(self.torrent.stats().peers_connected)
+#[derive(Debug, SimpleObject)]
+pub struct TorrentFile {
+    /// The length of the file in bytes
+    pub length: u64,
+    /// Name of the file
+    pub name: String,
+    /// Download priority of the file
+    pub dnd: i8,
+    /// Was the file renamed?
+    pub is_renamed: bool,
+    pub first_piece: u32,
+    pub last_piece: u32,
+    pub offset: u64,
+}
+
+impl From<transmission::torrent::torrentinfo::TorrentFile> for TorrentFile {
+    fn from(file: transmission::torrent::torrentinfo::TorrentFile) -> Self {
+        Self {
+            length: file.length,
+            name: file.name,
+            dnd: file.dnd,
+            is_renamed: file.is_renamed,
+            first_piece: file.first_piece,
+            last_piece: file.last_piece,
+            offset: file.offset,
+        }
     }
 }
 
@@ -89,39 +174,44 @@ impl SubscriptionRoot {
             .get(&torrent_id)
             .ok_or("Torrent not found")?
             .clone();
-        let ttorrent = torrent.clone();
-        let interval =
-            tokio::time::interval(std::time::Duration::from_millis(refresh_duration_millis));
+        drop(torrent);
+        let torrents = data.torrents.clone();
         let last_sent = Arc::new(Mutex::new(None));
-        let interval_stream = tokio_stream::wrappers::IntervalStream::new(interval);
 
         let str = async_stream::stream! {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(refresh_duration_millis)).await;
-                let tmp_torrent = ttorrent.clone();
-                if tmp_torrent.stats().percent_complete < 1.0 {
-                    let be = bincode::serialize(&tmp_torrent);
-                    if let Ok(be) = be {
-                        let mut should_yield = false;
-                        match &*last_sent.lock().unwrap(){
-                            Some(be2)=>{
-                                if &be != be2{
-                                    should_yield = true
+                {
+                    let tmp_torrent = torrents.get(&torrent_id);
+                    let tmp_torrent = match tmp_torrent {
+                        Some(torrent) => torrent.clone(),
+                        None => break
+                    };
+
+                    if tmp_torrent.stats().percent_complete < 1.0 {
+                        let be = bincode::serialize(&tmp_torrent);
+                        if let Ok(be) = be {
+                            let mut should_yield = false;
+                            match &*last_sent.lock().unwrap(){
+                                Some(be2)=>{
+                                    if &be != be2{
+                                        should_yield = true
+                                    }
+                                }
+                                None => should_yield=true
+                            }
+                            if should_yield {
+                                {
+                                    *last_sent.lock().unwrap() = Some(be);
+                                }
+                                yield Torrent{
+                                    torrent:tmp_torrent
                                 }
                             }
-                            None => should_yield=true
                         }
-                        if should_yield {
-                            {
-                                *last_sent.lock().unwrap() = Some(be);
-                            }
-                            yield Torrent{
-                                torrent:tmp_torrent
-                            }
-                        }
+                    }else{
+                        break
                     }
-                }else{
-                    break
                 }
             }
         };

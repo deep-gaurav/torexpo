@@ -72,6 +72,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bytes",
+ "chrono",
  "fast_chemail",
  "fnv",
  "futures-util",
@@ -289,7 +290,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "clang-sys",
  "clap",
- "env_logger",
+ "env_logger 0.6.2",
  "lazy_static",
  "log",
  "peeking_take_while",
@@ -524,6 +525,19 @@ name = "env_logger"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aafcde04e90a5226a6443b7aabdb016ba2f8307c847d524724bd9b346dd1a2d3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 dependencies = [
  "atty",
  "humantime",
@@ -1153,6 +1167,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
 
 [[package]]
+name = "pretty_env_logger"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
+dependencies = [
+ "env_logger 0.7.1",
+ "log",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1582,8 +1606,12 @@ dependencies = [
  "async-stream",
  "axum",
  "bincode",
+ "chrono",
  "dashmap",
  "futures-util",
+ "log",
+ "pretty_env_logger",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "transmission",

@@ -20,6 +20,7 @@ use crate::{
 
 pub mod context;
 pub mod structures;
+pub mod torrent_struc;
 
 async fn graphql_handler(schema: Extension<MainSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
@@ -33,6 +34,8 @@ async fn graphql_playground() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
+    pretty_env_logger::init();
+
     let transmission_config = transmission::ClientConfig::new()
         .app_name("torexpo")
         .download_dir(&std::env::var("TOREXPO_DOWNLOAD_DIR").unwrap_or_else(|_| "downloads".into()))

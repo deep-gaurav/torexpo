@@ -120,6 +120,11 @@ impl Torrent {
         Ok(self.torrent.info().into())
     }
 
+    async fn set_seed_ratio(&self, ratio: f64) -> Result<String> {
+        self.torrent.clone().set_ratio(ratio);
+        Ok("success".into())
+    }
+
     async fn stats(&self) -> Result<TorrentStats> {
         Ok(self.torrent.stats().into())
     }
@@ -183,30 +188,28 @@ impl SubscriptionRoot {
                         Some(torrent) => torrent.clone(),
                         None => break
                     };
-
-                    if tmp_torrent.stats().percent_complete < 1.0 {
-                        let be = bincode::serialize(&tmp_torrent);
-                        if let Ok(be) = be {
-                            let mut should_yield = false;
-                            match &*last_sent.lock().unwrap(){
-                                Some(be2)=>{
-                                    if &be != be2{
-                                        should_yield = true
-                                    }
+                    let be = bincode::serialize(&tmp_torrent);
+                    if let Ok(be) = be {
+                        let mut should_yield = false;
+                        match &*last_sent.lock().unwrap(){
+                            Some(be2)=>{
+                                if &be != be2{
+                                    should_yield = true
                                 }
-                                None => should_yield=true
                             }
-                            if should_yield {
-                                {
-                                    *last_sent.lock().unwrap() = Some(be);
-                                }
-                                yield Torrent{
-                                    torrent:tmp_torrent
-                                }
+                            None => should_yield=true
+                        }
+                        if should_yield {
+                            {
+                                *last_sent.lock().unwrap() = Some(be);
+                            }
+                            yield Torrent{
+                                torrent:tmp_torrent.clone()
                             }
                         }
-                    }else{
-                        break
+                    };
+                    if tmp_torrent.stats().percent_done >= 1.0 {
+                        break;
                     }
                 }
             }

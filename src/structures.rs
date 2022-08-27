@@ -209,7 +209,7 @@ impl SubscriptionRoot {
                         }
                     };
                     if tmp_torrent.stats().percent_done >= 1.0 {
-                        tmp_torrent.clone().set_ratio(0.0);
+                        tmp_torrent.stop();
                         break;
                     }
                 }

@@ -20,8 +20,9 @@ tempfile = "3.3.0"
 log = "0.4"
 pretty_env_logger = "0.4.0"
 chrono = "0.4.22"
-openssl-sys = { version = "0.9.75", features = ["vendored"] }
-libevent-sys = { version = "0.2.4", features = ["bundled"] }
+tower-http = { version = "0.3.4", features = ["fs"] }
+tower = "0.4.13"
+
 [profile.release]
 lto = true
 codegen-units = 1

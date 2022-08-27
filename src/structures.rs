@@ -120,10 +120,10 @@ impl Torrent {
         Ok(self.torrent.info().into())
     }
 
-    async fn set_seed_ratio(&self, ratio: f64) -> Result<String> {
-        self.torrent.clone().set_ratio(ratio);
-        Ok("success".into())
-    }
+    // async fn set_seed_ratio(&self, ratio: f64) -> Result<String> {
+    //     self.torrent.clone().set_ratio(ratio);
+    //     Ok("success".into())
+    // }
 
     async fn stats(&self) -> Result<TorrentStats> {
         Ok(self.torrent.stats().into())

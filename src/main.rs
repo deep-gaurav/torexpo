@@ -85,9 +85,20 @@ async fn serve_file(
         Some(files) => match files.get(file_id) {
             Some(file) => {
                 let path = std::path::Path::new(&download_dir).join(&file.name);
-                let servefile = tower_http::services::ServeFile::new(path);
+                let servefile = tower_http::services::ServeFile::new(&path);
+                let filename = path.file_name();
+
                 match servefile.oneshot(req).await {
-                    Ok(res) => Ok(res.map(boxed)),
+                    Ok(mut res) => {
+                        if let Some(filename) = filename {
+                            if let Ok(value) =
+                                format!("filename=\"{}\"", filename.to_string_lossy()).try_into()
+                            {
+                                res.headers_mut().insert("content-disposition", value);
+                            }
+                        }
+                        Ok(res.map(boxed))
+                    }
                     Err(err) => Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("Something went wrong: {}", err),

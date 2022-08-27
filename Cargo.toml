@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-transmission = "0.3.1"
+transmission = { git = "https://github.com/deep-gaurav/transmission.git" }
 async-graphql = { version = "4.0", features = ["chrono"] }
 async-graphql-axum = "4.0"
 tokio = { version = "1", features = ["full"] }
@@ -20,3 +20,7 @@ tempfile = "3.3.0"
 log = "0.4"
 pretty_env_logger = "0.4.0"
 chrono = "0.4.22"
+
+[profile.release]
+lto = true
+codegen-units = 1

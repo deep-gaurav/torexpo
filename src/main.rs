@@ -17,7 +17,6 @@ use dashmap::DashMap;
 use magic_crypt::{new_magic_crypt, MagicCrypt256, MagicCryptTrait};
 use structures::{DownloadLinkStructure, MainSchema, SubscriptionRoot};
 use tower::ServiceExt;
-use transmission::Torrent;
 
 use crate::{
     context::SharedData,
@@ -65,10 +64,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(graphql_playground).post(graphql_handler))
         .route("/ws", GraphQLSubscription::new(schema.clone()))
-        .route(
-            "/download/:torrent_id/:file_id",
-            get(move |path, req| serve_file(torrents, download_dir, path, req)),
-        )
+        .route("/download/:torrent_id/:file_id", get(serve_file))
         .layer(Extension(schema));
 
     let port = std::env::var("TOREXPO_PORT").unwrap_or_else(|_| "8080".into());
@@ -79,8 +75,6 @@ async fn main() {
 }
 
 async fn serve_file(
-    torrents: Arc<DashMap<i32, Torrent>>,
-    download_dir: String,
     Path(download_link): Path<String>,
     req: Request<Body>,
 ) -> Result<Response<BoxBody>, (StatusCode, String)> {
@@ -118,38 +112,6 @@ async fn serve_file(
             }
             Err(_) => Err((StatusCode::BAD_REQUEST, "invalid download link".to_string())),
         },
-        Err(err) => Err((StatusCode::BAD_REQUEST, "invalid download link".to_string())),
+        Err(_err) => Err((StatusCode::BAD_REQUEST, "invalid download link".to_string())),
     }
-
-    // match torrents
-    //     .get(&torrent_id)
-    //     .map(|torrent| torrent.info().files)
-    // {
-    //     Some(files) => match files.get(file_id) {
-    //         Some(file) => {
-    //             let path = std::path::Path::new(&download_dir).join(&file.name);
-    //             let servefile = tower_http::services::ServeFile::new(&path);
-    //             let filename = path.file_name();
-
-    //             match servefile.oneshot(req).await {
-    //                 Ok(mut res) => {
-    //                     if let Some(filename) = filename {
-    //                         if let Ok(value) =
-    //                             format!("filename=\"{}\"", filename.to_string_lossy()).try_into()
-    //                         {
-    //                             res.headers_mut().insert("content-disposition", value);
-    //                         }
-    //                     }
-    //                     Ok(res.map(boxed))
-    //                 }
-    //                 Err(err) => Err((
-    //                     StatusCode::INTERNAL_SERVER_ERROR,
-    //                     format!("Something went wrong: {}", err),
-    //                 )),
-    //             }
-    //         }
-    //         None => Err((StatusCode::NOT_FOUND, "File to download Not found".into())),
-    //     },
-    //     None => Err((StatusCode::NOT_FOUND, "Torrent not found".to_string())),
-    // }
 }

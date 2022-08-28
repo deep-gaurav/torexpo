@@ -102,6 +102,13 @@ impl QueryRoot {
             .collect::<Vec<_>>();
         Ok(torrents)
     }
+    async fn torrent<'ctx>(&self, ctx: &Context<'ctx>, torrent_id: i32) -> Result<Option<Torrent>> {
+        let data = ctx.data::<SharedData>()?;
+        let torrent = data.torrents.get(&torrent_id).map(|t| Torrent {
+            torrent: t.value().clone(),
+        });
+        Ok(torrent)
+    }
 }
 
 pub struct Torrent {

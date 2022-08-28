@@ -30,7 +30,7 @@ pub mod torrent_struc;
 
 lazy_static::lazy_static! {
     pub static ref DOWNLOAD_DIR: String = std::env::var("TOREXPO_DOWNLOAD_DIR").unwrap_or_else(|_| "downloads".into());
-    pub static ref MCRYPT:MagicCrypt256 = new_magic_crypt!("magickey", 256);
+    pub static ref MCRYPT:MagicCrypt256 = new_magic_crypt!(std::env::var("TOREXPO_DOWNLOAD_ENCRYPT_KEY").unwrap_or_else(|_| "download key".into()), 256);
 }
 
 async fn graphql_handler(schema: Extension<MainSchema>, req: GraphQLRequest) -> GraphQLResponse {

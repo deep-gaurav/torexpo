@@ -171,7 +171,8 @@ impl TorrentFile {
                     match bincoded {
                         Ok(bincoded) => {
                             let encrypted = MCRYPT.encrypt_bytes_to_base64(&bincoded);
-                            Some(format!("/download/{encrypted}"))
+                            let urlencoded = urlencoding::encode(&encrypted);
+                            Some(format!("/download/{}", urlencoded))
                         }
                         Err(_) => None,
                     }
@@ -212,6 +213,7 @@ impl SubscriptionRoot {
         &self,
         ctx: &Context<'ctx>,
         torrent_id: i32,
+        #[graphql(default = true)] auto_stop: bool,
         #[graphql(default = 500)] refresh_duration_millis: u64,
     ) -> Result<impl Stream<Item = Torrent>> {
         let data = ctx.data::<SharedData>()?;
@@ -253,7 +255,7 @@ impl SubscriptionRoot {
                             }
                         }
                     };
-                    if tmp_torrent.stats().percent_done >= 1.0 {
+                    if auto_stop && tmp_torrent.stats().percent_done >= 1.0 {
                         tmp_torrent.stop();
                         break;
                     }

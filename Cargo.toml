@@ -25,6 +25,7 @@ tower = "0.4.13"
 magic-crypt = "3.1.10"
 lazy_static = "1.4.0"
 serde = { version = "1", features = ["derive"] }
+urlencoding = "2.1.0"
 
 [profile.release]
 lto = true

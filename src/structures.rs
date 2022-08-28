@@ -1,11 +1,18 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    borrow::Cow,
+    sync::{Arc, Mutex},
+};
 
 use async_graphql::*;
+use chrono::{DateTime, Duration, Utc};
 use futures_util::Stream;
+use magic_crypt::MagicCryptTrait;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     context::SharedData,
     torrent_struc::{TorrentInfo, TorrentStats},
+    DOWNLOAD_DIR, MCRYPT,
 };
 
 pub type MainSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
@@ -131,6 +138,7 @@ impl Torrent {
 }
 
 #[derive(Debug, SimpleObject)]
+#[graphql(complex)]
 pub struct TorrentFile {
     /// The length of the file in bytes
     pub length: u64,
@@ -143,6 +151,43 @@ pub struct TorrentFile {
     pub first_piece: u32,
     pub last_piece: u32,
     pub offset: u64,
+}
+
+#[ComplexObject]
+impl TorrentFile {
+    async fn download_link(&self, expiry_secs: Option<u64>) -> Option<String> {
+        let path = std::path::Path::new(&DOWNLOAD_DIR.clone()).join(&self.name);
+        let pathcheck = path.clone();
+        let exists = tokio::task::spawn_blocking(move || pathcheck.exists()).await;
+        match exists {
+            Ok(exists) => {
+                if exists {
+                    let coded = DownloadLinkStructure {
+                        file: path.to_string_lossy(),
+                        expiry: expiry_secs
+                            .map(|secs| chrono::Utc::now() + Duration::seconds(secs as i64)),
+                    };
+                    let bincoded = bincode::serialize(&coded);
+                    match bincoded {
+                        Ok(bincoded) => {
+                            let encrypted = MCRYPT.encrypt_bytes_to_base64(&bincoded);
+                            Some(format!("/download/{encrypted}"))
+                        }
+                        Err(_) => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownloadLinkStructure<'a> {
+    pub file: Cow<'a, str>,
+    pub expiry: Option<DateTime<Utc>>,
 }
 
 impl From<transmission::torrent::torrentinfo::TorrentFile> for TorrentFile {

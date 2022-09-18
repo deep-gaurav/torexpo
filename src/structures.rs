@@ -41,7 +41,7 @@ impl MutationRoot {
         let torrent_file = torrent.value(ctx)?;
         let tmpdir = tempfile::tempdir()?;
         let path = tmpdir.path().join(&torrent_file.filename);
-        let mut file = std::fs::File::open(&path).map_err(|err|format!("Cant create temporary file{:#?}",err))?;
+        let mut file = std::fs::File::create(&path).map_err(|err|format!("Cant create temporary file{:#?}",err))?;
         // let bufWrite = BufWriter::new(file);
         let _res = tokio::task::spawn_blocking(move || {
             let mut read = torrent_file.into_read();

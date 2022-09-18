@@ -20,7 +20,7 @@ tempfile = "3.3.0"
 log = "0.4"
 pretty_env_logger = "0.4.0"
 chrono = "0.4.22"
-tower-http = { version = "0.3.4", features = ["fs"] }
+tower-http = { version = "0.3.4", features = ["fs","cors"] }
 tower = "0.4.13"
 magic-crypt = "3.1.10"
 lazy_static = "1.4.0"

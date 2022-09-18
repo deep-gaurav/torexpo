@@ -8,7 +8,7 @@ use async_graphql_axum::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
 use axum::{
     body::{boxed, Body, BoxBody},
     extract::Path,
-    http::{Request, Response, StatusCode},
+    http::{Method, Request, Response, StatusCode},
     response::{self, IntoResponse},
     routing::get,
     Extension, Router, Server,
@@ -18,6 +18,7 @@ use magic_crypt::{new_magic_crypt, MagicCrypt256, MagicCryptTrait};
 use seed_buster::seed_buster;
 use structures::{DownloadLinkStructure, MainSchema, SubscriptionRoot};
 use tower::ServiceExt;
+use tower_http::cors::{Any, CorsLayer};
 use transmission::{Client, Torrent};
 
 use crate::{
@@ -97,12 +98,17 @@ async fn main() {
     let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
         .data(data)
         .finish();
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        // allow requests from any origin
+        .allow_origin(Any);
 
     let app = Router::new()
         .route("/", get(graphql_playground).post(graphql_handler))
         .route("/ws", GraphQLSubscription::new(schema.clone()))
         .route("/download/:download_link", get(serve_file))
-        .layer(Extension(schema));
+        .layer(Extension(schema))
+        .layer(cors);
 
     let port = std::env::var("TOREXPO_PORT").unwrap_or_else(|_| "8080".into());
     let torrent_buster_proc = seed_buster(torrents);

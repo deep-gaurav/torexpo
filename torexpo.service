@@ -1,0 +1,13 @@
+[Unit]
+Description=torexpo torrent server
+After=network.target
+
+[Service]
+User=deep
+WorkingDirectory=/home/deep/torexpo
+Environment="TOREXPO_DOWNLOAD_DIR=/home/deep/torexpo/downloads" "TOREXPO_CONFIG_DIR=/home/deep/torexpo/config" "TOREXPO_PORT=9337" "TOREXPO_DOWNLOAD_ENCRYPT_KEY=torexposider"
+ExecStart=/home/deep/torexpo/torexpo
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

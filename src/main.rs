@@ -73,48 +73,50 @@ async fn load_torrents(client: &Client, config_dir: &str) -> Vec<Torrent> {
     torrents_loaded
 }
 
-#[tokio::main]
-async fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
-    let torrents = Arc::new(DashMap::new());
-    let download_dir = DOWNLOAD_DIR.clone();
-    let config_dir = std::env::var("TOREXPO_CONFIG_DIR").unwrap_or_else(|_| "config".into());
-    let transmission_config = transmission::ClientConfig::new()
-        .app_name("torexpo")
-        .download_dir(&download_dir)
-        .config_dir(&config_dir);
-    let transmission_client = transmission::Client::new(transmission_config);
+    tokio_uring::start(async {
+        let torrents = Arc::new(DashMap::new());
+        let download_dir = DOWNLOAD_DIR.clone();
+        let config_dir = std::env::var("TOREXPO_CONFIG_DIR").unwrap_or_else(|_| "config".into());
+        let transmission_config = transmission::ClientConfig::new()
+            .app_name("torexpo")
+            .download_dir(&download_dir)
+            .config_dir(&config_dir);
+        let transmission_client = transmission::Client::new(transmission_config);
 
-    let loaded_torrents = load_torrents(&transmission_client, &config_dir).await;
-    for torrent in loaded_torrents.into_iter() {
-        torrents.insert(torrent.id(), torrent);
-    }
+        let loaded_torrents = load_torrents(&transmission_client, &config_dir).await;
+        for torrent in loaded_torrents.into_iter() {
+            torrents.insert(torrent.id(), torrent);
+        }
 
-    let data = SharedData {
-        client: transmission_client,
-        torrents: torrents.clone(),
-    };
+        let data = SharedData {
+            client: transmission_client,
+            torrents: torrents.clone(),
+        };
 
-    let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
-        .data(data)
-        .finish();
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        // allow requests from any origin
-        .allow_origin(Any);
+        let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
+            .data(data)
+            .finish();
+        let cors = CorsLayer::new()
+            .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+            // allow requests from any origin
+            .allow_origin(Any);
 
-    let app = Router::new()
-        .route("/", get(graphql_playground).post(graphql_handler))
-        .route("/ws", GraphQLSubscription::new(schema.clone()))
-        .route("/download/:download_link", get(serve_file))
-        .layer(Extension(schema))
-        .layer(cors);
+        let app = Router::new()
+            .route("/", get(graphql_playground).post(graphql_handler))
+            .route("/ws", GraphQLSubscription::new(schema.clone()))
+            .route("/download/:download_link", get(serve_file))
+            .layer(Extension(schema))
+            .layer(cors);
 
-    let port = std::env::var("TOREXPO_PORT").unwrap_or_else(|_| "8080".into());
-    let torrent_buster_proc = seed_buster(torrents);
-    let server_proc =
-        Server::bind(&format!("0.0.0.0:{}", port).parse().unwrap()).serve(app.into_make_service());
-    futures_util::future::select(Box::pin(torrent_buster_proc), server_proc).await;
+        let port = std::env::var("TOREXPO_PORT").unwrap_or_else(|_| "8080".into());
+        let torrent_buster_proc = seed_buster(torrents);
+        let server_proc = Server::bind(&format!("0.0.0.0:{}", port).parse().unwrap())
+            .serve(app.into_make_service());
+        futures_util::future::select(Box::pin(torrent_buster_proc), server_proc).await;
+    });
+    Ok(())
 }
 
 async fn serve_file(
